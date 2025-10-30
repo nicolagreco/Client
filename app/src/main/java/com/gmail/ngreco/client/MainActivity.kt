@@ -15,16 +15,27 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.gmail.ngreco.client.databinding.ActivityMainBinding
+import java.text.DateFormat
+import java.util.Date
 import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
+    private val requiredPermissions = arrayOf(
+        Manifest.permission.SEND_SMS,
+        Manifest.permission.READ_SMS
+    )
+
     private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
-                sendSms()
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            val allGranted = requiredPermissions.all { permission ->
+                permissions[permission] == true
+            }
+
+            if (allGranted) {
+                startSmsWorkflow()
             } else {
                 showPermissionDeniedDialog()
             }
@@ -37,26 +48,35 @@ class MainActivity : AppCompatActivity() {
 
         binding.sendSmsButton.setOnClickListener {
             when {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.SEND_SMS
-                ) == PackageManager.PERMISSION_GRANTED -> sendSms()
+                hasAllRequiredPermissions() -> startSmsWorkflow()
 
-                shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS) -> {
+                shouldShowPermissionRationale() -> {
                     showPermissionRationale()
                 }
 
-                else -> requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                else -> requestPermissionLauncher.launch(requiredPermissions)
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        refreshSmsStats()
+    }
+
+    private fun hasAllRequiredPermissions(): Boolean = requiredPermissions.all { permission ->
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun shouldShowPermissionRationale(): Boolean =
+        requiredPermissions.any { permission -> shouldShowRequestPermissionRationale(permission) }
 
     private fun showPermissionRationale() {
         AlertDialog.Builder(this)
             .setTitle(R.string.permission_rationale_title)
             .setMessage(R.string.permission_rationale_message)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                requestPermissionLauncher.launch(requiredPermissions)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -78,13 +98,15 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun sendSms() {
-        if (SmsSender.sendSms(this)) {
+    private fun startSmsWorkflow() {
+        val smsSent = SmsSender.sendSms(this)
+        if (smsSent) {
             scheduleSmsWorker()
             Toast.makeText(this, R.string.sms_scheduled, Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(this, R.string.sms_failed, Toast.LENGTH_LONG).show()
         }
+        refreshSmsStats()
     }
 
     private fun scheduleSmsWorker() {
@@ -96,5 +118,19 @@ class MainActivity : AppCompatActivity() {
             ExistingPeriodicWorkPolicy.UPDATE,
             workRequest
         )
+    }
+
+    private fun refreshSmsStats() {
+        val stats = SmsStatsRepository.getLatestStats(this)
+        if (stats == null) {
+            binding.smsCountStatus.text = getString(R.string.sms_stats_count_placeholder)
+        } else {
+            val formattedTime = DateFormat.getDateTimeInstance().format(Date(stats.recordedAt))
+            binding.smsCountStatus.text = getString(
+                R.string.sms_stats_count_value,
+                stats.count,
+                formattedTime
+            )
+        }
     }
 }
