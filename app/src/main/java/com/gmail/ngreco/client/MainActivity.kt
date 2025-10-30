@@ -6,13 +6,16 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.telephony.SmsManager
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.gmail.ngreco.client.databinding.ActivityMainBinding
+import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
@@ -76,23 +79,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendSms() {
-        runCatching {
-            val smsManager = getSystemService(SmsManager::class.java)
-                ?: SmsManager.getDefault()
-            smsManager.sendTextMessage(
-                SMS_PHONE_NUMBER,
-                null,
-                getString(R.string.sms_body),
-                null,
-                null
-            )
-            Toast.makeText(this, R.string.sms_sent, Toast.LENGTH_SHORT).show()
-        }.onFailure {
+        if (SmsSender.sendSms(this)) {
+            scheduleSmsWorker()
+            Toast.makeText(this, R.string.sms_scheduled, Toast.LENGTH_SHORT).show()
+        } else {
             Toast.makeText(this, R.string.sms_failed, Toast.LENGTH_LONG).show()
         }
     }
 
-    companion object {
-        private const val SMS_PHONE_NUMBER = "3481503476"
+    private fun scheduleSmsWorker() {
+        val workRequest = PeriodicWorkRequestBuilder<SmsSenderWorker>(20, TimeUnit.MINUTES)
+            .build()
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            SmsSenderWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            workRequest
+        )
     }
 }

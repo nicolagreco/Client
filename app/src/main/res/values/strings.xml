@@ -1,9 +1,10 @@
 <resources>
     <string name="app_name">Client</string>
-    <string name="instructions">Tap the button below to send a preset SMS message to 3481503476.</string>
-    <string name="send_sms">Send SMS</string>
+    <string name="instructions">Tap the button below to start sending the preset SMS message to 3481503476 every 20 minutes.</string>
+    <string name="send_sms">Start SMS schedule</string>
     <string name="sms_body">Hello from the Kotlin SMS sender!</string>
     <string name="sms_sent">SMS sent</string>
+    <string name="sms_scheduled">SMS sent and will repeat every 20 minutes</string>
     <string name="sms_failed">Unable to send SMS</string>
     <string name="permission_rationale_title">SMS permission required</string>
     <string name="permission_rationale_message">This app needs SMS permission to send the message for you.</string>
